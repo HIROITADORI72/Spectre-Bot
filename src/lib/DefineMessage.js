@@ -21,7 +21,8 @@ export default class DefineMessage {
     LIST_RESPONSE: 'listResponseMessage',
     EPHEMERAL: 'ephemeralMessage',
     VIEW_ONCE: 'viewOnceMessage',
-    VIEW_ONCE_V2: 'viewOnceMessageV2'
+    VIEW_ONCE_V2: 'viewOnceMessageV2',
+    VIEW_ONCE_AUDIO: 'viewOnceMessageV2' // Baileys often maps audio view once here
   };
 
   #M;
@@ -34,46 +35,75 @@ export default class DefineMessage {
     this.client = client;
     this.#M = M;
 
-    // Unwrap ephemeral and view once messages
-    if (this.#M.message?.ephemeralMessage) {
-      this.#M.message = this.#M.message.ephemeralMessage.message;
-    }
-    if (this.#M.message?.viewOnceMessage) {
-      this.#M.message = this.#M.message.viewOnceMessage.message;
-    }
-    if (this.#M.message?.viewOnceMessageV2) {
-      this.#M.message = this.#M.message.viewOnceMessageV2.message;
-    }
+    // 1. Unwrap Message Layers (Ephemeral, ViewOnce)
+    this.#unwrapMessage();
 
     const type = this.type;
     const msg = this.#M.message?.[type];
 
-    // Sender resolution
+    // 2. Sender Resolution (LID to JID handling)
     const jid = this.#M.key.remoteJid;
     const isGroup = jid.endsWith('@g.us');
     const senderJid = isGroup ? this.#M.key.participant : jid;
     this.sender = {
       jid: DefineMessage.#sanitize(senderJid),
-      username: this.#M.pushName || 'User'
+      username: this.#M.pushName || 'User',
+      lid: this.#M.key.participant || this.#M.key.remoteJid // Raw LID if available
     };
 
-    // Content extraction
-    this.content = (() => {
-      if (type === DefineMessage.MESSAGE_TYPES.CONVERSATION) return this.#M.message.conversation;
-      if (type === DefineMessage.MESSAGE_TYPES.EXTENDED_TEXT) return msg.text;
-      if (type === DefineMessage.MESSAGE_TYPES.BUTTONS_RESPONSE) return msg.selectedButtonId;
-      if (type === DefineMessage.MESSAGE_TYPES.LIST_RESPONSE) return msg.singleSelectReply?.selectedRowId;
-      if ([DefineMessage.MESSAGE_TYPES.IMAGE, DefineMessage.MESSAGE_TYPES.VIDEO].includes(type)) return msg.caption;
-      return '';
-    })() || '';
+    // 3. Content Extraction (Advanced)
+    this.content = this.#extractContent(type, msg);
+    
+    // 4. External Ad Reply & Buttons
+    this.adReply = msg?.contextInfo?.externalAdReply || null;
+    this.buttons = msg?.buttons || msg?.templateButtons || null;
 
-    // Media type
+    // 5. Media type
     this.mediaType = type?.endsWith('Message') ? type.replace('Message', '') : null;
 
-    // Mentions
+    // 6. Mentions
     this.mentioned = msg?.contextInfo?.mentionedJid || [];
 
-    // Quoted message reconstruction
+    // 7. Quoted Message Reconstruction (Fixed & Enhanced)
+    this.#reconstructQuoted(msg);
+
+    // Properties to be set in build()
+    this.group = null;
+    this.isAdminMessage = false;
+    this.urls = [];
+    this.numbers = [];
+  }
+
+  #unwrapMessage() {
+    if (!this.#M.message) return;
+    if (this.#M.message.ephemeralMessage) {
+      this.#M.message = this.#M.message.ephemeralMessage.message;
+    }
+    if (this.#M.message.viewOnceMessage) {
+      this.#M.message = this.#M.message.viewOnceMessage.message;
+    }
+    if (this.#M.message.viewOnceMessageV2) {
+      this.#M.message = this.#M.message.viewOnceMessageV2.message;
+    }
+    // Handle nested viewOnce (sometimes happens in Baileys)
+    const type = Object.keys(this.#M.message || {})[0];
+    if (type === 'viewOnceMessage' || type === 'viewOnceMessageV2') {
+        this.#M.message = this.#M.message[type].message;
+    }
+  }
+
+  #extractContent(type, msg) {
+    if (!msg) return '';
+    if (type === DefineMessage.MESSAGE_TYPES.CONVERSATION) return this.#M.message.conversation;
+    if (type === DefineMessage.MESSAGE_TYPES.EXTENDED_TEXT) return msg.text;
+    if (type === DefineMessage.MESSAGE_TYPES.BUTTONS_RESPONSE) return msg.selectedButtonId;
+    if (type === DefineMessage.MESSAGE_TYPES.LIST_RESPONSE) return msg.singleSelectReply?.selectedRowId;
+    if (msg.caption) return msg.caption;
+    if (msg.text) return msg.text;
+    return '';
+  }
+
+  #reconstructQuoted(msg) {
     const contextInfo = msg?.contextInfo;
     if (contextInfo?.quotedMessage) {
       const quoted = contextInfo.quotedMessage;
@@ -88,10 +118,11 @@ export default class DefineMessage {
         content: (() => {
           if (quotedType === DefineMessage.MESSAGE_TYPES.CONVERSATION) return quoted.conversation;
           if (quotedType === DefineMessage.MESSAGE_TYPES.EXTENDED_TEXT) return quotedMsg.text;
-          if ([DefineMessage.MESSAGE_TYPES.IMAGE, DefineMessage.MESSAGE_TYPES.VIDEO].includes(quotedType)) return quotedMsg.caption;
+          if (quotedMsg?.caption) return quotedMsg.caption;
           return '';
         })() || '',
         message: quoted,
+        isViewOnce: !!(quotedMsg?.viewOnce),
         react: async (emoji) => {
           return this.client.sendMessage(this.from, {
             react: { text: emoji, key: { remoteJid: this.from, fromMe: false, id: stanzaId, participant } }
@@ -108,12 +139,6 @@ export default class DefineMessage {
         }
       };
     }
-
-    // Properties to be set in build()
-    this.group = null;
-    this.isAdminMessage = false;
-    this.urls = [];
-    this.numbers = [];
   }
 
   /**
@@ -175,18 +200,6 @@ export default class DefineMessage {
   }
 
   /**
-   * @param {object} msg
-   */
-  async replyRaw(msg) {
-    try {
-      return this.client.sendMessage(this.from, msg, { quoted: this.#M });
-    } catch (error) {
-      console.error('[DefineMessage] Error in replyRaw():', error);
-      throw error;
-    }
-  }
-
-  /**
    * @returns {Promise<Buffer>}
    */
   async download() {
@@ -205,16 +218,14 @@ export default class DefineMessage {
     }
   }
 
+  // LID/JID Utilities
   /**
-   * @param {string} jid
+   * Converts LID to JID if possible
+   * @param {string} lid 
    */
-  async forward(jid) {
-    try {
-      return this.client.sendMessage(jid, { forward: this.#M });
-    } catch (error) {
-      console.error('[DefineMessage] Error in forward():', error);
-      throw error;
-    }
+  async lidToJid(lid) {
+    const result = await this.client.onWhatsApp(lid);
+    return result?.[0]?.jid || lid;
   }
 
   // Private Static Utilities

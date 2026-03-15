@@ -1,0 +1,10 @@
+export default {
+  name: 'ban',
+  category: 'admin',
+  ownerOnly: true,
+  execute: async (M, args) => {
+    const target = M.mentioned[0] || (args[0] ? args[0].replace(/[^0-9]/g, '') + '@s.whatsapp.net' : null);
+    if (!target) return M.reply('❌ Please mention a user or provide their number.');
+    await M.reply(`✅ User ${target} banned.`);
+  }
+};

@@ -1,8 +1,8 @@
-export const sticker = {
+export default {
   name: 'sticker',
   aliases: ['s'],
   category: 'general',
-  execute: async (M, args, sock) => {
+  execute: async (M) => {
     const isMedia = M.mediaType === 'image' || M.mediaType === 'video';
     const isQuotedMedia = M.quoted && (M.quoted.type === 'imageMessage' || M.quoted.type === 'videoMessage');
 
@@ -27,5 +27,3 @@ export const sticker = {
     await M.reply(buffer, 'sticker');
   }
 };
-
-export default sticker;

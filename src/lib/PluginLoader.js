@@ -37,10 +37,10 @@ export class PluginLoader {
         if (command.aliases) {
           command.aliases.forEach(alias => this.commands.set(alias, command));
         }
-        console.log(`✅ Loaded command: ${command.name}`);
+        console.log(`✅ Loaded command: ${category}/${command.name}`);
       }
     } catch (error) {
-      console.error(`❌ Error loading command ${file}:`, error);
+      console.error(`❌ Error loading command ${category}/${file}:`, error);
     }
   }
 
@@ -48,9 +48,10 @@ export class PluginLoader {
     const watcher = chokidar.watch(this.commandsPath, { ignoreInitial: true });
     watcher.on('change', async (filePath) => {
       const relativePath = path.relative(this.commandsPath, filePath);
-      const [category, file] = relativePath.split(path.sep);
-      if (category && file && file.endsWith('.js')) {
-        console.log(`🔄 Reloading command: ${file}`);
+      const parts = relativePath.split(path.sep);
+      if (parts.length === 2 && parts[1].endsWith('.js')) {
+        const [category, file] = parts;
+        console.log(`🔄 Reloading command: ${category}/${file}`);
         await this.loadCommand(category, file);
       }
     });
