@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spectre Bot Auth</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .container { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); text-align: center; width: 400px; }
+        h1 { color: #333; margin-bottom: 1.5rem; }
+        textarea { width: 100%; height: 100px; padding: 10px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 1rem; resize: none; box-sizing: border-box; }
+        button { background-color: #25d366; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 1rem; margin: 5px; transition: background 0.3s; }
+        button:hover { background-color: #128c7e; }
+        button.secondary { background-color: #34b7f1; }
+        #qr-container { margin-top: 1.5rem; display: none; }
+        #qr { width: 250px; height: 250px; border: 1px solid #eee; padding: 10px; border-radius: 8px; }
+        #status { margin-top: 1rem; font-weight: bold; color: #555; }
+        #session-display { margin-top: 1.5rem; display: none; background: #e8f5e9; padding: 1rem; border-radius: 8px; border: 1px solid #c8e6c9; }
+        #session-string { word-break: break-all; font-family: monospace; font-size: 0.8rem; margin-top: 0.5rem; display: block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Spectre Bot</h1>
+        
+        <div id="session-input-section">
+            <textarea id="session-string-input" placeholder="Paste session string here..."></textarea>
+            <div>
+                <button onclick="connectViaSession()">Connect via session</button>
+                <button class="secondary" onclick="useQR()">Use QR instead</button>
+            </div>
+        </div>
+
+        <div id="qr-container">
+            <p>Scan this QR code with WhatsApp</p>
+            <img id="qr" src="" alt="QR Code">
+        </div>
+
+        <div id="status">Waiting for input...</div>
+
+        <div id="session-display">
+            <p>✅ Connected! Your session string:</p>
+            <code id="session-string"></code>
+            <button onclick="copySession()" style="margin-top: 10px; font-size: 0.8rem;">Copy Session</button>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        const status = document.getElementById('status');
+        const qrContainer = document.getElementById('qr-container');
+        const qrImg = document.getElementById('qr');
+        const sessionInputSection = document.getElementById('session-input-section');
+        const sessionDisplay = document.getElementById('session-display');
+        const sessionStringCode = document.getElementById('session-string');
+
+        socket.on('qr', (dataUrl) => {
+            qrImg.src = dataUrl;
+            qrContainer.style.display = 'block';
+            sessionInputSection.style.display = 'none';
+            status.innerText = 'Scan the QR code';
+        });
+
+        socket.on('ready', (botNumber) => {
+            qrContainer.style.display = 'none';
+            sessionInputSection.style.display = 'none';
+            sessionDisplay.style.display = 'block';
+            status.innerText = `✅ Connected as ${botNumber}`;
+        });
+
+        socket.on('session_string', (str) => {
+            sessionStringCode.innerText = str;
+        });
+
+        function connectViaSession() {
+            const str = document.getElementById('session-string-input').value;
+            if (!str) return alert('Please paste a session string');
+            fetch('/auth/session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ session: str })
+            }).then(res => {
+                if (res.ok) {
+                    status.innerText = 'Connecting...';
+                } else {
+                    alert('Failed to process session string');
+                }
+            });
+        }
+
+        function useQR() {
+            fetch('/auth/qr', { method: 'POST' });
+            status.innerText = 'Generating QR...';
+        }
+
+        function copySession() {
+            navigator.clipboard.writeText(sessionStringCode.innerText);
+            alert('Session string copied to clipboard!');
+        }
+    </script>
+</body>
+</html>
