@@ -1,8 +1,16 @@
-export default {
-  name: 'sticker',
-  aliases: ['s'],
-  category: 'general',
-  execute: async (M) => {
+import BaseCommand from '../../core/BaseCommand.js';
+
+export default class StickerCommand extends BaseCommand {
+  constructor(client, options) {
+    super(client, {
+      ...options,
+      name: 'sticker',
+      aliases: ['s'],
+      description: 'Convert image or video to sticker.'
+    });
+  }
+
+  async execute(M) {
     const isMedia = M.mediaType === 'image' || M.mediaType === 'video';
     const isQuotedMedia = M.quoted && (M.quoted.type === 'imageMessage' || M.quoted.type === 'videoMessage');
 
@@ -26,4 +34,4 @@ export default {
 
     await M.reply(buffer, 'sticker');
   }
-};
+}

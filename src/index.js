@@ -1,16 +1,18 @@
 import mongoose from 'mongoose';
-import makeWASocket, { DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
+import makeWASocket, { DisconnectReason, fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
 import { EventEmitter } from 'events';
 import QRCode from 'qrcode';
 import pino from 'pino';
 import { config } from './config/index.js';
 import { useMongoAuthState } from './lib/useMongoAuthState.js';
-import { PluginLoader } from './lib/PluginLoader.js';
-import { handleMessage } from './events/message.js';
+import CommandLoader from './core/CommandLoader.js';
+import MessageHandler from './core/MessageHandler.js';
 import { startWebServer } from './web/server.js';
 
 const botEmitter = new EventEmitter();
-const pluginLoader = new PluginLoader();
+let sock;
+let commandLoader;
+let messageHandler;
 
 async function connectToWhatsApp() {
   try {
@@ -21,7 +23,7 @@ async function connectToWhatsApp() {
     const { version, isLatest } = await fetchLatestBaileysVersion();
     console.log(`Using Baileys v${version.join('.')}, isLatest: ${isLatest}`);
 
-    const sock = makeWASocket({
+    sock = makeWASocket({
       version,
       auth: state,
       logger: pino({ level: 'silent' }),
@@ -29,6 +31,11 @@ async function connectToWhatsApp() {
       browser: ['Spectre', 'Chrome', '1.0.0'],
       getMessage: async () => ({ conversation: '' })
     });
+
+    // Initialize core systems
+    commandLoader = new CommandLoader(sock);
+    await commandLoader.loadAll();
+    messageHandler = new MessageHandler(sock, commandLoader);
 
     sock.ev.on('creds.update', saveCreds);
 
@@ -60,7 +67,7 @@ async function connectToWhatsApp() {
       if (m.type === 'notify') {
         for (const msg of m.messages) {
           if (!msg.key.fromMe) {
-            await handleMessage(sock, msg, pluginLoader);
+            await messageHandler.handle(msg);
           }
         }
       }
@@ -75,25 +82,18 @@ async function connectToWhatsApp() {
 
 // Start everything
 (async () => {
-  await pluginLoader.loadCommands();
   startWebServer(botEmitter);
   
   botEmitter.on('auth_session', async (sessionStr) => {
     try {
       const creds = JSON.parse(Buffer.from(sessionStr, 'base64').toString());
-      // Save to MongoDB
       const Session = mongoose.model('Session');
       await Session.findByIdAndUpdate('creds', { data: JSON.stringify(creds) }, { upsert: true });
       console.log('✅ Session string applied, restarting bot...');
-      process.exit(0); // Restarting via process manager or manual
+      process.exit(0);
     } catch (e) {
       console.error('❌ Invalid session string');
     }
-  });
-
-  botEmitter.on('auth_qr', () => {
-    console.log('🔄 QR Auth requested');
-    // Re-trigger connection if needed
   });
 
   await connectToWhatsApp();

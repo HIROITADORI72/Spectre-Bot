@@ -1,11 +1,18 @@
+import BaseCommand from '../../core/BaseCommand.js';
 import { config } from '../../config/index.js';
 
-export default {
-  name: 'help',
-  aliases: ['h', 'menu'],
-  category: 'general',
-  execute: async (M, args, sock, pluginLoader) => {
-    const commands = Array.from(new Set(pluginLoader.commands.values()));
+export default class HelpCommand extends BaseCommand {
+  constructor(client, options) {
+    super(client, {
+      ...options,
+      name: 'help',
+      aliases: ['h', 'menu'],
+      description: 'Display all available commands.'
+    });
+  }
+
+  async execute(M, args) {
+    const commands = Array.from(new Set(this.loader.commands.values()));
     const categories = {};
     
     commands.forEach(cmd => {
@@ -21,4 +28,4 @@ export default {
     text += `_Use ${config.PREFIX}command to execute._`;
     await M.reply(text);
   }
-};
+}

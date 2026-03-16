@@ -1,10 +1,17 @@
 import os from 'os';
+import BaseCommand from '../../core/BaseCommand.js';
 import { config } from '../../config/index.js';
 
-export default {
-  name: 'info',
-  category: 'general',
-  execute: async (M) => {
+export default class InfoCommand extends BaseCommand {
+  constructor(client, options) {
+    super(client, {
+      ...options,
+      name: 'info',
+      description: 'Display bot information and system status.'
+    });
+  }
+
+  async execute(M) {
     const uptime = process.uptime();
     const hours = Math.floor(uptime / 3600);
     const minutes = Math.floor((uptime % 3600) / 60);
@@ -19,4 +26,4 @@ export default {
                  `👑 *Owner:* ${config.OWNER}`;
     await M.reply(text);
   }
-};
+}
