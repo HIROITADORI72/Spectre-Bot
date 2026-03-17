@@ -24,11 +24,12 @@ export const useMongoAuthState = async () => {
     await Session.findByIdAndDelete(id);
   };
 
-  const creds = (await read('creds')) || initAuthCreds();
+  let creds = (await read('creds')) || initAuthCreds();
 
   return {
     state: {
-      creds,
+      get creds() { return creds; },
+      set creds(val) { creds = val; },
       keys: {
         get: async (type, ids) => {
           const data = {};

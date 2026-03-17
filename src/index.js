@@ -86,13 +86,20 @@ async function connectToWhatsApp() {
   
   botEmitter.on('auth_session', async (sessionStr) => {
     try {
-      const creds = JSON.parse(Buffer.from(sessionStr, 'base64').toString());
+      const decoded = Buffer.from(sessionStr, 'base64').toString();
+      const creds = JSON.parse(decoded);
+      
+      // Handle potential double JSON stringification
+      const data = typeof creds === 'string' ? creds : JSON.stringify(creds);
+      
       const Session = mongoose.model('Session');
-      await Session.findByIdAndUpdate('creds', { data: JSON.stringify(creds) }, { upsert: true });
+      await Session.findByIdAndUpdate('creds', { data }, { upsert: true });
+      
       console.log('✅ Session string applied, restarting bot...');
-      process.exit(0);
+      // Give some time for DB write to complete before exit
+      setTimeout(() => process.exit(0), 1000);
     } catch (e) {
-      console.error('❌ Invalid session string');
+      console.error('❌ Invalid session string:', e.message);
     }
   });
 

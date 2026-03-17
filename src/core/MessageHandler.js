@@ -13,6 +13,7 @@ export default class MessageHandler {
     this.client = client;
     this.commandLoader = commandLoader;
     this.cooldowns = new Map();
+    this.botNumber = client.user.id.split(':')[0] + '@s.whatsapp.net';
   }
 
   /**
@@ -63,7 +64,7 @@ export default class MessageHandler {
     }
 
     // Admin-only restriction
-    if (command.adminOnly && !M.sender.isAdmin) {
+    if (command.adminOnly && !M.sender.isAdmin && M.sender.jid !== config.OWNER) {
       M.reply('❌ This command is restricted to group administrators.');
       return false;
     }
