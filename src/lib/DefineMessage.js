@@ -142,24 +142,24 @@ export default class DefineMessage {
   }
 
   /**
-   * Async build process
+   * Async build process - optimized to be lighter
    * @returns {Promise<this>}
    */
   async build() {
-    try {
-      this.urls = DefineMessage.#getUrls(this.content);
-      this.numbers = DefineMessage.#extractNumbers(this.content);
+    // Only perform group metadata fetching if absolutely necessary later
+    // For now, just return this
+    return this;
+  }
 
-      if (this.chat === 'group') {
-        this.group = await new DefineGroup(this.from, this.client).build();
-        if (this.group.admins.includes(this.sender.jid)) {
-          this.isAdminMessage = true;
-        }
+  /**
+   * Ensures group metadata is loaded if it's a group chat
+   */
+  async ensureGroup() {
+    if (this.chat === 'group' && !this.group) {
+      this.group = await new DefineGroup(this.from, this.client).build();
+      if (this.group.admins.includes(this.sender.jid)) {
+        this.isAdminMessage = true;
       }
-      return this;
-    } catch (error) {
-      console.error('[DefineMessage] Error in build():', error);
-      return this;
     }
   }
 

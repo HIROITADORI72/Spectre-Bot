@@ -36,7 +36,7 @@ export default class MessageHandler {
       if (!command) return;
 
       // Check permissions and constraints
-      if (this.checkPermissions(M, command)) {
+      if (await this.checkPermissions(M, command)) {
         await this.execute(M, command, args);
       }
     } catch (error) {
@@ -48,9 +48,9 @@ export default class MessageHandler {
    * Checks if the user has permission to execute the command.
    * @param {Object} M - The processed message object.
    * @param {BaseCommand} command - The command instance.
-   * @returns {boolean}
+   * @returns {Promise<boolean>}
    */
-  checkPermissions(M, command) {
+  async checkPermissions(M, command) {
     // Owner restriction
     if (command.ownerOnly && M.sender.jid !== config.OWNER) {
       M.reply('❌ This command is restricted to the bot owner.');
@@ -58,15 +58,18 @@ export default class MessageHandler {
     }
 
     // Group-only restriction
-    if (command.groupOnly && !M.isGroup) {
+    if (command.groupOnly && M.chat !== 'group') {
       M.reply('❌ This command can only be used in groups.');
       return false;
     }
 
-    // Admin-only restriction
-    if (command.adminOnly && !M.sender.isAdmin && M.sender.jid !== config.OWNER) {
-      M.reply('❌ This command is restricted to group administrators.');
-      return false;
+    // Admin-only or Group-dependent restriction
+    if (command.adminOnly || command.groupOnly) {
+      await M.ensureGroup();
+      if (command.adminOnly && !M.isAdminMessage && M.sender.jid !== config.OWNER) {
+        M.reply('❌ This command is restricted to group administrators.');
+        return false;
+      }
     }
 
     // Cooldown check

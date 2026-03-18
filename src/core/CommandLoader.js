@@ -39,7 +39,9 @@ export default class CommandLoader {
         }
       }
     }
-    this.watch();
+    if (process.env.NODE_ENV !== 'production') {
+      this.watch();
+    }
   }
 
   /**

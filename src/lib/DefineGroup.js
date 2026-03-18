@@ -3,6 +3,9 @@
  * @typedef {import('@whiskeysockets/baileys').GroupMetadata} GroupMetadata
  */
 
+const groupCache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 export default class DefineGroup {
   /**
    * @param {string} jid
@@ -24,11 +27,21 @@ export default class DefineGroup {
    */
   async build() {
     try {
-      this.metadata = await this.client.groupMetadata(this.jid);
+      const cached = groupCache.get(this.jid);
+      if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
+        this.metadata = cached.metadata;
+      } else {
+        this.metadata = await this.client.groupMetadata(this.jid);
+        groupCache.set(this.jid, { metadata: this.metadata, timestamp: Date.now() });
+      }
+
       this.admins = this.metadata.participants
         .filter((p) => p.admin)
         .map((p) => p.id);
-      this.isBotAdmin = this.admins.includes(this.client.user.id.split(':')[0] + '@s.whatsapp.net');
+      
+      const botId = this.client.user.id.split(':')[0] + '@s.whatsapp.net';
+      this.isBotAdmin = this.admins.includes(botId);
+      
       return this;
     } catch (error) {
       console.error(`[DefineGroup] Error building group ${this.jid}:`, error);

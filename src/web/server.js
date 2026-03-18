@@ -30,9 +30,21 @@ export const startWebServer = (botEmitter) => {
 
   io.on('connection', (socket) => {
     console.log('🌐 Web UI connected');
-    botEmitter.on('qr', (dataUrl) => socket.emit('qr', dataUrl));
-    botEmitter.on('ready', (botNumber) => socket.emit('ready', botNumber));
-    botEmitter.on('session_string', (str) => socket.emit('session_string', str));
+    
+    const qrHandler = (dataUrl) => socket.emit('qr', dataUrl);
+    const readyHandler = (botNumber) => socket.emit('ready', botNumber);
+    const sessionHandler = (str) => socket.emit('session_string', str);
+
+    botEmitter.on('qr', qrHandler);
+    botEmitter.on('ready', readyHandler);
+    botEmitter.on('session_string', sessionHandler);
+
+    socket.on('disconnect', () => {
+      console.log('🌐 Web UI disconnected');
+      botEmitter.off('qr', qrHandler);
+      botEmitter.off('ready', readyHandler);
+      botEmitter.off('session_string', sessionHandler);
+    });
   });
 
   httpServer.listen(config.PORT, () => {

@@ -29,7 +29,11 @@ async function connectToWhatsApp() {
       logger: pino({ level: 'silent' }),
       printQRInTerminal: false,
       browser: ['Spectre', 'Chrome', '1.0.0'],
-      getMessage: async () => ({ conversation: '' })
+      getMessage: async () => ({ conversation: '' }),
+      // Memory optimization
+      shouldSyncHistoryMessage: () => false,
+      syncFullHistory: false,
+      markOnlineOnConnect: false
     });
 
     // Initialize core systems
