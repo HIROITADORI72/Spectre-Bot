@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import makeWASocket, { DisconnectReason, fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
+import makeWASocket, { DisconnectReason, fetchLatestBaileysVersion, BufferJSON } from '@whiskeysockets/baileys';
 import { EventEmitter } from 'events';
 import QRCode from 'qrcode';
 import pino from 'pino';
@@ -30,7 +30,6 @@ async function connectToWhatsApp() {
       printQRInTerminal: false,
       browser: ['Spectre', 'Chrome', '1.0.0'],
       getMessage: async () => ({ conversation: '' }),
-      // Memory optimization
       shouldSyncHistoryMessage: () => false,
       syncFullHistory: false,
       markOnlineOnConnect: false
@@ -60,9 +59,9 @@ async function connectToWhatsApp() {
         const botNumber = sock.user.id.split(':')[0];
         botEmitter.emit('ready', botNumber);
 
-        // Generate session string (base64 of creds)
-        const creds = await state.creds;
-        const sessionString = Buffer.from(JSON.stringify(creds)).toString('base64');
+        // Generate session string using BufferJSON.replacer for correct Buffer serialization
+        const creds = state.creds;
+        const sessionString = Buffer.from(JSON.stringify(creds, BufferJSON.replacer)).toString('base64');
         botEmitter.emit('session_string', sessionString);
       }
     });
@@ -87,20 +86,21 @@ async function connectToWhatsApp() {
 // Start everything
 (async () => {
   startWebServer(botEmitter);
-  
+
   botEmitter.on('auth_session', async (sessionStr) => {
     try {
-      const decoded = Buffer.from(sessionStr, 'base64').toString();
+      const decoded = Buffer.from(sessionStr, 'base64').toString('utf-8');
+
+      // Parse the raw creds
       const creds = JSON.parse(decoded);
-      
-      // Handle potential double JSON stringification
-      const data = typeof creds === 'string' ? creds : JSON.stringify(creds);
-      
+
+      // Re-serialize with BufferJSON.replacer so useMongoAuthState can read it correctly
+      const data = JSON.stringify(creds, BufferJSON.replacer);
+
       const Session = mongoose.model('Session');
-      await Session.findByIdAndUpdate('creds', { data }, { upsert: true });
-      
+      await Session.findByIdAndUpdate('creds', { data }, { upsert: true, new: true });
+
       console.log('✅ Session string applied, restarting bot...');
-      // Give some time for DB write to complete before exit
       setTimeout(() => process.exit(0), 1000);
     } catch (e) {
       console.error('❌ Invalid session string:', e.message);
