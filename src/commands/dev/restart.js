@@ -6,6 +6,7 @@ export default class RestartCommand extends BaseCommand {
       ...options,
       name: 'restart',
       description: 'Restart the bot.',
+      category: 'dev',
       ownerOnly: true
     });
   }

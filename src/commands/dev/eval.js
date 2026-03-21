@@ -8,6 +8,7 @@ export default class EvalCommand extends BaseCommand {
       name: 'eval',
       aliases: ['e', 'ev'],
       description: 'Execute JavaScript code.',
+      category: 'dev',
       ownerOnly: true
     });
   }

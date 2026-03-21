@@ -89,10 +89,19 @@ async function connectToWhatsApp() {
 
   botEmitter.on('auth_session', async (sessionStr) => {
     try {
-      const decoded = Buffer.from(sessionStr, 'base64').toString('utf-8');
+      // Trim and validate base64 format
+      sessionStr = sessionStr.trim();
+      if (!/^[A-Za-z0-9+/=]+$/.test(sessionStr)) {
+        throw new Error('Invalid base64 format. Session string contains invalid characters.');
+      }
 
-      // Parse the raw creds
+      const decoded = Buffer.from(sessionStr, 'base64').toString('utf-8');
       const creds = JSON.parse(decoded);
+
+      // Validate credentials structure
+      if (!creds.noiseKey || !creds.signedIdentityKey) {
+        throw new Error('Invalid credentials structure. Missing required fields.');
+      }
 
       // Re-serialize with BufferJSON.replacer so useMongoAuthState can read it correctly
       const data = JSON.stringify(creds, BufferJSON.replacer);
@@ -100,10 +109,11 @@ async function connectToWhatsApp() {
       const Session = mongoose.model('Session');
       await Session.findByIdAndUpdate('creds', { data }, { upsert: true, new: true });
 
-      console.log('✅ Session string applied, restarting bot...');
-      setTimeout(() => process.exit(0), 1000);
+      console.log('✅ Session imported successfully. Restarting bot in 2 seconds...');
+      setTimeout(() => process.exit(0), 2000);
     } catch (e) {
-      console.error('❌ Invalid session string:', e.message);
+      console.error('❌ Session import failed:', e.message);
+      botEmitter.emit('session_error', e.message);
     }
   });
 

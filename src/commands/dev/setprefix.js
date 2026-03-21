@@ -7,6 +7,7 @@ export default class SetPrefixCommand extends BaseCommand {
       ...options,
       name: 'setprefix',
       description: 'Change the bot prefix.',
+      category: 'dev',
       ownerOnly: true
     });
   }
@@ -18,7 +19,6 @@ export default class SetPrefixCommand extends BaseCommand {
     if (newPrefix.length > 2) return M.reply('❌ Prefix must be 1 or 2 characters long.');
 
     config.PREFIX = newPrefix;
-    // Logic for saving to config or database should be here
     await M.reply(`✅ Prefix changed to \`${newPrefix}\`.`);
   }
 }

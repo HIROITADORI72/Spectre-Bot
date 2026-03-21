@@ -7,6 +7,7 @@ export default class BroadcastCommand extends BaseCommand {
       name: 'broadcast',
       aliases: ['bc'],
       description: 'Send a message to all chats.',
+      category: 'dev',
       ownerOnly: true
     });
   }
